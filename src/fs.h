@@ -1,8 +1,8 @@
-#include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <conio.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 #define BLOCK_SIZE 512                    //unit is byte B
 #define INODE_SIZE 128
@@ -35,10 +35,10 @@ struct SuperBlock {
     unsigned int s_block_num;
     
     unsigned short s_free_inode_num;
-    unsigned int s_free_inode_num;
+    unsigned int s_free_block_num;
     
     int s_free_addr; //free block stack address
-    int s_free[BLCOKS_PER_GROUP]; //free block stack
+    int s_free[BLOCKS_PER_GROUP]; //free block stack
     
     unsigned short s_block_size;
     unsigned short s_inode_size;
@@ -55,10 +55,10 @@ struct SuperBlock {
 
 
 struct Inode {
-    unsigned short i_ino; //inode identifier
+    unsigned short i_inode; //inode identifier
     unsigned short i_mode; //access permission
 
-    unsigned short i_cnt; //the number of file names that point to this inode
+    unsigned short i_count; //the number of file names that point to this inode
 
     char i_uname[20]; //file's owner's name
     char i_gname[20];
@@ -146,3 +146,4 @@ void help();
 
 void cmd(char str[]); //process the input command
 
+void print(char* str);
