@@ -116,14 +116,14 @@ void printInodeBitmap();
 void printBlockBitmap(int num = superBlock->s_block_num);
 
 int balloc();                //allocate a block
-bool bfree();                //free a block
+int bfree();                //free a block
 int ialloc();                //free an inode
-bool ifree();
+int ifree();
 
-bool mkdir(int parinoAddr, char name[]); //parinoAddr refers to the parent directory inode address
-bool rmdir(int parinoAddr, char name[]);
-bool create(int parinoAddr, char name[]); //create a file
-bool del(int parinoAddr, char name[]);
+int mkdir(int parinoAddr, char name[]); //parinoAddr refers to the parent directory inode address
+int rmdir(int parinoAddr, char name[]);
+int create(int parinoAddr, char name[]); //create a file
+int del(int parinoAddr, char name[]);
 void ls(int parinoAddr);
 void cd(int parinoAddr, char name[]);
 
@@ -132,13 +132,13 @@ void writefile(Inode fileInode, int fileInodeAddr, char buf[]);
 void inUserName(char userName[]); //input user name
 void inPassWord(char passwd[]);
 
-bool login();
-bool check(char username[], char passwd[]);
+int login();
+int check(char username[], char passwd[]);
 void gotoroot();
 void logout();
 
-bool userAdd(char username[]);
-bool userDel(char username[]);
+int userAdd(char username[]);
+int userDel(char username[]);
 
 void chmod(int parinoAddr, char name[], int pmode);
 bool touch(int parinoAddr, char name[], char buf[]);
