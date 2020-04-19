@@ -382,13 +382,8 @@ int mkdir(int parinoAddr, char name[]) {
         int j;
         for (j = 0; j < 16; j++) {
             if (strcmp(dirlist[j].dirName, name) == 0) {
-                struct Inode* tmp = (struct Inode*)malloc(sizeof(struct Inode));
-                fseek(fr, dirlist[j].inodeAddr, SEEK_SET);
-                fread(tmp, sizeof(tmp), 1, fr);
-                if (((tmp->i_mode >> 9) & 1) == 1) {
-                    print("function mkdir(): the directory already exist\n");
-                    return -1;
-                }
+                print("cannot create directory: File exists\n");
+                return -1;
             }
             else if (strcmp(dirlist[j].dirName, "") == 0) {
                 if (posi == -1) {
@@ -398,7 +393,6 @@ int mkdir(int parinoAddr, char name[]) {
             }
             i++;
         }
-
     }
     if (posi != -1) {
         fseek(fr, cur->i_dirBlock[posi], SEEK_SET);
@@ -412,9 +406,56 @@ int mkdir(int parinoAddr, char name[]) {
             return -1;
         }
         dirlist[posj].inodeAddr = chiinoAddr;
+        
+        struct Inode* inode = (struct Inode*)malloc(sizeof(struct Inode));
+        inode->i_inode = (chiinoAddr - inodeStartAddr) / superBlock->s_inode_size;
+        inode->i_atime = time(NULL);
+        inode->i_ctime = time(NULL);
+        inode->i_mtime = time(NULL);
+        strcpy(inode->i_uname, curUserName);
+        strcpy(inode->i_gname, curGroupName);
+        inode->i_count = 2;
+        
+        int curBlockAddr = balloc();
+        if (curBlockAddr == -1) {
+            print("block allocate failed\n");
+            return -1;
+        }
+        Dir dirlist2[16] = {0};
+        strcpy(dirlist2[0].dirName, ".");
+        strcpy(dirlist2[1].dirName, "..");
+        dirlist2[0].inodeAddr = chiinoAddr; //current directory address
+        dirlist2[1].inodeAddr = parinoAddr; //parent directory address
+        
+        fseek(fw, curBlockAddr, SEEK_SET);
+        fwrite(dirlist2, sizeof(dirlist2), 1, fw);
+        
+        inode->i_dirBlock[0] = curBlockAddr;
+        int k;
+        for (k = 1; k < 10; k++) {
+            inode->i_dirBlock[k] = -1;
+        }
+        inode->i_size = superBlock->s_block_size;
+        inode->i_indirBlock_1 = -1;
+        inode->i_mode = MODE_DIR | DIR_DEF_PERMISSION;
 
+        fseek(fw, chiinoAddr, SEEK_SET);
+        fwrite(inode, sizeof(struct Inode), 1, fw);
+        
+        fseek(fw, cur->i_dirBlock[posi], SEEK_SET);
+        fwrite(dirlist, sizeof(dirlist), 1, fw);
+        
+        cur->i_count++;
+        fseek(fw, parinoAddr, SEEK_SET);
+        fwrite(cur, sizeof(struct Inode), 1, fw);
+        fflush(fw);
+        
+        return 0
     }
-    
+    else {
+        print("free directory not found, directory create failed\n");
+        return -1;
+    }
 }
 
 void print(char* str) {
