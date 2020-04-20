@@ -26,7 +26,7 @@
 #define OTHERS_X 1
 #define FILE_DFT_PERMISSION 0664
 #define DIR_DFT_PERMISSION 0775
-
+#define DIR_DIRECT_BLOCKS 10
 #define FILESYSNAME "mono.sys"
 
 //super block define
@@ -67,7 +67,7 @@ struct Inode {
     time_t i_ctime; //the last time the file changed
     time_t i_mtime; //the last time the file content changed
     time_t i_atime; //the last time the file opened
-    int i_dirBlock[10]; //10 direct blocks, 10 * 512B = 5120B
+    int i_dirBlock[DIR_DIRECT_BLOCKS]; //10 direct blocks, 10 * 512B = 5120B
     int i_indirBlock_1; //first level indirect block, 512B / 4 * 512B = 64KB
 };
 

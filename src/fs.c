@@ -262,7 +262,6 @@ int bfree(int addr) {
         char tmp[BLOCK_SIZE] = {0}; 
         fseek(fw, addr, SEEK_SET);
         fwrite(tmp, sizeof(tmp), 1, fw);
-        free(tmp); //always remember to free up unwanted memory
 
         if (top == superBlock->s_blocks_per_group - 1) {
             superBlock->s_free[0] = superBlock->s_free_addr;
@@ -338,7 +337,6 @@ int ifree(int addr) {
     char tmp[INODE_SIZE] = {0}; 
     fseek(fw, addr, SEEK_SET);
     fwrite(tmp, sizeof(tmp), 1, fw);
-    free(tmp); 
     
     //update super block
     superBlock->s_free_inode_num++;
@@ -359,16 +357,17 @@ int mkdir(int parinoAddr, char name[]) {
         print("function mkdir(): directory name too long\n");
         return -1;
     }
+    int dirlist_per_group = BLOCK_SIZE / (4 + MAN_NAME_SIZE);
     Dir dirlist[16];
     
     struct Inode* cur;
     fseek(fr, parinoAddr, SEEK_SET);
     fread(cur, sizeof(cur), 1, fr);
     
-    int i = 0, count = cur->i_count + 1, posi = -1, posj = -1;
+    int i = 0, count = cur->i_count + 1, posi = -1, posj = -1, dno = 0;
     while (i < 160) {
         //in 160 directories, directly search in direct blocks
-        int dno = i / 16;
+        dno = i / 16;
         
         if (cur->i_dirBlock[dno] == -1) {
             i += 16;
@@ -385,14 +384,29 @@ int mkdir(int parinoAddr, char name[]) {
                 print("cannot create directory: File exists\n");
                 return -1;
             }
-            else if (strcmp(dirlist[j].dirName, "") == 0) {
-                if (posi == -1) {
-                    posi = dno;
-                    posj = j;
-                }
+            else if (posi == -1 && strcmp(dirlist[j].dirName, "") == 0) {
+                posi = dno;
+                posj = j;
             }
             i++;
         }
+    }
+    if (posi == -1) { //can't find free dirItem in the blocks already exist, have to create a new block
+        dno = 0
+        while (dno < DIR_DIRECT_BLOCKS && cur->i_dirBlock[dno] != -1) {
+            dno++;
+        }
+        if (dno == DIR_DIRECT_BLOCKS) {
+            print("the number of directories has readched to the maximum\n");
+            return -1;
+        }
+        cur->i_dirBlock[dno] = balloc();
+        if (cur->i_dirBlock[dno] == -1) {
+            print("function mkdir(): create block failed\n");
+            return -1;
+        }
+        posi = dno;
+        posj = 0;
     }
     if (posi != -1) {
         fseek(fr, cur->i_dirBlock[posi], SEEK_SET);
@@ -429,6 +443,7 @@ int mkdir(int parinoAddr, char name[]) {
         
         fseek(fw, curBlockAddr, SEEK_SET);
         fwrite(dirlist2, sizeof(dirlist2), 1, fw);
+        free(dirlist2);
         
         inode->i_dirBlock[0] = curBlockAddr;
         int k;
@@ -444,6 +459,7 @@ int mkdir(int parinoAddr, char name[]) {
         
         fseek(fw, cur->i_dirBlock[posi], SEEK_SET);
         fwrite(dirlist, sizeof(dirlist), 1, fw);
+        free(dirlist);
         
         cur->i_count++;
         fseek(fw, parinoAddr, SEEK_SET);
@@ -456,6 +472,147 @@ int mkdir(int parinoAddr, char name[]) {
         print("free directory not found, directory create failed\n");
         return -1;
     }
+}
+
+int rmall(int parinoAddr) { //delete everything under this directory
+    struct Inode* cur = (struct Inode*)malloc(sizeof(struct Inode));
+    fseek(fr, parinoAddr, SEEK_SET);
+    fread(cur, sizeof(struct Inode), 1, fr);
+    
+    int cnt = cur->i_count, res = 0;
+    if (cnt <= 2) {
+        res = bfree(cur->i_dirBlock[0]);
+        if (res == -1) {
+            print("function rmall(): free block failed\n");
+            return -1;
+        }
+        res = ifree(parinoAddr);
+        if (res == -1) {
+            print("function rmall(): free inode failed\n");
+            return -1;
+        }
+        return 0;
+    }
+    
+    int i = 0;
+    while (i < 160) {
+        if (cur->i_dirBlock[i/16] == -1) {
+            i += 16;
+            continue;
+        }
+        Dir dirlist[16] = {
+            0
+        };
+        //extract disk block
+        int blockAddr = cur->i_dirBlock[i/16];
+        fseek(fr, blockAddr, SEEK_SET);
+        fread(&dirlist, sizeof(dirlist), 1, fr);
+        
+        //extract dit item from block, and delete recursively
+        int j;
+        bool f = false;
+        for (j = 0;j < 16; j++) {
+            if (!(strcmp(dirlist[j].dirName, "") == 0 || strcmp(dirlist[j].dirName, ".") == 0 || strcmp(distlist[j].dirName, "..") == 0)) {
+            f = true;
+            rmall(dirlist[j].inodeAddr);
+            }
+            cnt = cur->i_count;
+            i++;
+        }
+        if (f) {
+            res = bfree(blockAddr);
+            if (res == -1) {
+                print("function rmall(): block free failed\n");
+                return -1;
+            }
+        }
+    }
+    free(cur);
+    res = ifree(parinoAddr);
+    if (res == -1) {
+        print("function rmall(): block free failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+int rmdir(int curAddr, char name[]) {
+    if (strlen(name) >= MAX_NAME_SIZE) {
+        print("directory name too long\n");
+        return -1;
+    }
+    
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+        print("wrong operation\n");
+        return -1;
+    }
+    
+    struct Inode* curInode = (struct Inode*)malloc(sizeof(struct Inode));
+    fseek(fr, curAddr, SEEK_SET);
+    fread(curInode, sizeof(struct Inode), 1, fr);
+    
+    int cnt = curInode->i_count;
+    int filemode;
+    if (strcmp(curUserName, curInode->i_uname) == 0) {
+        filemode = 6;
+    }
+    else if(strcmp(curUserName, curInode->i_gname) == 0) {
+        filemode = 3;
+    }
+    else {
+        filemode = 0;
+    }
+    
+    if ((((curInode->i_mode >> filemode >> 1)&1) == 0) && (strcmp(curUserName, "root") != 0)) {
+        print("no write authority!\n");
+        return -1;
+    }
+    
+    int i = 0;
+    while (i < 160) {
+        if (cur->i_dirBlock[i/16] == -1) {
+            i += 16;
+            continue;
+        }
+        
+        Dir dirlist[16] = {
+            0
+        };
+        int blockAddr = curInode->i_dirBlock[i/16];
+        fseek(fr, blockAddr, SEEK_SET);
+        fread(&dirlist, sizeof(dirlist), 1, fr);
+        
+        int j;
+        for (j = 0;j < 16; j++) {
+            if (strcmp(dirlist[j].dirName, name) == 0) {
+                Inode tmp;
+                fseek(fr, dirlist[j].inodeAddr, SEEK_SET);
+                fread(&tmp, sizeof(Inode), 1, fr);
+                if (((tmp.i_mode >> 9) & 1) != 1) {
+                    print("error operation: not a directory\n");
+                    free(curInode);
+                    return -1;
+                }
+                rmall(dirlist[j].inodeAddr);
+                
+                strcpy(dirlist[j].dirName, "");
+                dirlist[j].inodeAddr = -1;
+                fseek(fw, blockAddr, SEEK_SET);
+                fwrite(&dirlist, sizeof(dirlist), 1, fw);
+                curInode->i_count--;
+                fseek(fw, curAddr, SEEK_SET);
+                fwrite(curInode, sizeof(curInode), 1, fw);
+                fflush(fw);
+                
+                free(curInode);
+                return 0;
+            }
+            i++;
+        }
+    }
+    print("directory not found\n");
+    free(curInode);
+    return -1;
 }
 
 void print(char* str) {

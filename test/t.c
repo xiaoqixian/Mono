@@ -4,8 +4,7 @@
 #include <unistd.h>
 
 struct S {
-    char s;
-    int d;
+    char s[20];
 };
 
 void print(char* str) {
@@ -13,6 +12,9 @@ void print(char* str) {
 }
 
 int main() {
-    print("hello world");
+    char s[20] = {
+        0
+    };
+    free(&s);
     return 0;
 }
