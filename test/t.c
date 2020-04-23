@@ -4,17 +4,19 @@
 #include <unistd.h>
 
 struct S {
-    char s[20];
+    int d;
 };
 
-void print(char* str) {
-    write(1, str, strlen(str));
+int* print(int nums[]) {
+    return nums;
 }
 
 int main() {
-    char s[20] = {
-        0
+    int nums[] = {
+        0,2,3,4
     };
-    free(&s);
+    int* num = print(nums);
+    printf("%d\n", *num);
+    printf("%d\n", nums[0]);
     return 0;
 }
