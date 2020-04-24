@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #define BLOCK_SIZE 512                    //unit is byte B
 #define INODE_SIZE 128
@@ -77,73 +78,73 @@ struct Dir {
 };
 
 //global variable declare
-extern SuperBlock *superBlock;
-extern const int inodeStartAddr;
-extern const int superBlockStartaddr;
-extern const int inodeBitmapStartAddr; //occupy two blocks, monitor no more than 1024 inodes
-extern const int blockBitmapStartAddr; //20 blocks size, monitor no more than 10240 blocks
-extern const int inodeStartAddr; //inode area start address
-extern const int blockStartAddr; //block area start address
-extern const int fileMaxsize;
-extern const int sumSize; //the size of the whole virtual disk
+ struct SuperBlock *superBlock;
+  int inodeStartAddr;
+  int superBlockStartAddr;
+  int inodeBitmapStartAddr; //occupy two blocks, monitor no more than 1024 inodes
+  int blockBitmapStartAddr; //20 blocks size, monitor no more than 10240 blocks
+  int inodeStartAddr; //inode area start address
+  int blockStartAddr; //block area start address
+ int maxFileSize;
+  int sumSize; //the size of the whole virtual disk
 
-extern int rootDirAddr; //root directory address
-extern int curDirAddr;
-extern char curDirName[310];
-extern char curHostName[110];
-extern char curUserName[110];
-extern char curGroupName[110];
-extern char curUserDirName[310];
+ int rootDirAddr; //root directory address
+ int curDirAddr;
+ char curDirName[310];
+ char curHostName[110];
+ char curUserName[110];
+ char curGroupName[110];
+ char curUserDirName[310];
 
-extern int nextUID; //next uid to allocate
-extern int nextGID;
+ int nextUID; //next uid to allocate
+ int nextGID;
 
-extern bool isLogin;
+ bool isLogin;
 
-extern FILE* fw; //write file pointer
-extern FILE* fr; //read file pointer
+ FILE* fw; //write file pointer
+ FILE* fr; //read file pointer
 
-extern bool inodeBitmap[INODE_NUM];
-extern bool blockBitmap[BLOCK_NUM];
+ bool inodeBitmap[INODE_NUM];
+ bool blockBitmap[BLOCK_NUM];
 
-extern char buffer[10000000];
+ char buffer[10000000];
 
 int Init();                 //preparations before the system starts
-void Format();                //format a virtual disk file
-bool Install();               //install the file system
-void printSuperBlock();
-void printInodeBitmap();
-void printBlockBitmap(int num = superBlock->s_block_num);
+int Format();                //format a virtual disk file
+int Install();               //install the file system
+int printSuperBlock();
+int printInodeBitmap();
+int printBlockBitmap(int num);
 
 int balloc();                //allocate a block
 int bfree();                //free a block
 int ialloc();                //free an inode
 int ifree();
 
-int mkdir(int parinoAddr, char name[]); //parinoAddr refers to the parent directory inode address
-int rmdir(int parinoAddr, char name[]);
-int create(int parinoAddr, char name[]); //create a file
+int mkDir(int parinoAddr, char name[]); //parinoAddr refers to the parent directory inode address
+int rmDir(int parinoAddr, char name[]);
+int create(int parinoAddr, char name[], char buf[]); //create a file
 int del(int parinoAddr, char name[]);
-void ls(int parinoAddr);
-void cd(int parinoAddr, char name[]);
+int list(int parinoAddr);
+int chDir(int parinoAddr, char name[]);
 
-void vim(int parinoAddr, char name[], char buf[]);
-void writefile(Inode fileInode, int fileInodeAddr, char buf[]);
-void inUserName(char userName[]); //input user name
-void inPassWord(char passwd[]);
+int vim(int parinoAddr, char name[], char buf[]);
+int writefile(struct Inode fileInode, int fileInodeAddr, char buf[]);
+int inUserName(char userName[]); //input user name
+int inPassWord(char passwd[]);
 
 int login();
 int check(char username[], char passwd[]);
-void gotoroot();
-void logout();
+int gotoroot();
+int logout();
 
 int userAdd(char username[]);
 int userDel(char username[]);
 
-void chmod(int parinoAddr, char name[], int pmode);
-bool touch(int parinoAddr, char name[], char buf[]);
-void help();
+int chMod(int parinoAddr, char name[], int pmode);
+int Touch(int parinoAddr, char name[], char buf[]);
+int help();
 
-void cmd(char str[]); //process the input command
+int cmd(char str[]); //process the input command
 
-void print(char* str);
+int print(char* str);
