@@ -1,9 +1,32 @@
 #include "fs.h"
 
+struct SuperBlock superBlock;
+
 int main() {
     //Init the virtual disk
-    //Init();
+    int res;
+    if ((res = Init()) == -1) {
+        print("file system init failed\n");
+        return -1;
+    }
+
+    system("reset");
+    while (1) {
+        char str[100];
+        char *p;
+        if ((p = strstr(curDirName, curUserDirName)) == NULL) {
+            printf("[%s@%s %s]# ", curHostName, curUserName, curDirName);
+        }
+        else {
+            printf("[%s@%s ~%s]# ", curHostName, curUserName, curDirName + strlen(curUserName));
+            scanf("%s", str);
+            cmd(str);
+        }
+    }
+    fclose(fw);
+    fclose(fr);
     return 0;
+
 }
 
 
@@ -15,6 +38,9 @@ int Init() {
     blockStartAddr = inodeStartAddr + INODE_NUM * INODE_SIZE;
     sumSize = blockStartAddr + BLOCK_NUM * BLOCK_SIZE;
     maxFileSize = 10 * BLOCK_SIZE + BLOCK_SIZE / sizeof(int) * BLOCK_SIZE;
+
+
+    int res;
 
     if ((fr = fopen(FILESYSNAME, "rb")) == NULL) {
         fw = fopen(FILESYSNAME, "wb");
@@ -36,37 +62,63 @@ int Init() {
         strcpy(curDirName, "/");
         
         printf("file system formating\n");
-        if (Format() == -1) {
+        if ((res = Format()) == -1) {
             printf("disk format failed\n");
             return -1;
         }
         printf("file system format done\n");
         printf("file system installing\n");
-        if (Install() == -1) {
+        if ((res = Install()) == -1) {
             printf("file system install failed\n");
             return -1;
         }
     }
+    else {
+        fread(buffer, sumSize, 1, fr);
+        fw = fopen(FILESYSNAME, "wb");
+        if (fw == NULL) {
+            print("virtual disk open failed\n");
+            return -1;
+        }
+        fwrite(buffer, sumSize, 1, fw);
+        
+        nextUID = 0;
+        nextGID = 0;
+        isLogin = false;
+        strcpy(curUserName, "root");
+        strcpy(curGroupName, "root");
+        
+        strcpy(curHostName, "lunar");
+        
+        rootDirAddr = inodeStartAddr;
+        curDirAddr = rootDirAddr;
+        strcpy(curDirName, "/");
+        if ((res = Install()) == -1) {
+            print("file system install failed\n");
+            return -1;
+        }
+    }
+    return 0;    
 }
 
 int Format() { //When you first time install the file system, some format need to be done.
     //format super block
-    superBlock->s_inode_num = INODE_NUM;
-    superBlock->s_block_num = BLOCK_NUM;
-    superBlock->s_free_inode_num = INODE_NUM;
-    superBlock->s_free_block_num = BLOCK_NUM;
+    superBlock.s_inode_num = INODE_NUM;
+    superBlock.s_block_num = BLOCK_NUM;
+    superBlock.s_free_inode_num = INODE_NUM;
+    superBlock.s_free_block_num = BLOCK_NUM;
 
-    superBlock->s_block_size = BLOCK_SIZE;
-    superBlock->s_inode_size = INODE_SIZE;
-    superBlock->s_superblock_size = sizeof(struct SuperBlock);
-    superBlock->s_blocks_per_group = BLOCKS_PER_GROUP;
+    superBlock.s_block_size = BLOCK_SIZE;
+    superBlock.s_inode_size = INODE_SIZE;
+    superBlock.s_superblock_size = sizeof(struct SuperBlock);
+    superBlock.s_blocks_per_group = BLOCKS_PER_GROUP;
     
-    superBlock->s_free_addr = blockStartAddr;
-    superBlock->s_superblock_startaddr = superBlockStartAddr;
-    superBlock->s_inodebitmap_startaddr = inodeBitmapStartAddr;
-    superBlock->s_blockbitmap_startaddr = blockBitmapStartAddr;
-    superBlock->s_inode_startaddr = inodeStartAddr;
-    superBlock->s_block_startaddr = blockStartAddr;
+    superBlock.s_free_addr = blockStartAddr;
+    superBlock.s_superblock_startaddr = superBlockStartAddr;
+    superBlock.s_inodebitmap_startaddr = inodeBitmapStartAddr;
+    superBlock.s_blockbitmap_startaddr = blockBitmapStartAddr;
+    superBlock.s_inode_startaddr = inodeStartAddr;
+    superBlock.s_block_startaddr = blockStartAddr;
     
     //format inode bitmap
     memset(inodeBitmap, 0, sizeof(inodeBitmap));
@@ -82,20 +134,20 @@ int Format() { //When you first time install the file system, some format need t
     //format block area
     for (i = BLOCK_NUM / BLOCKS_PER_GROUP - 1; i >= 0; i--) {
         if (i == BLOCK_NUM / BLOCKS_PER_GROUP - 1) {
-            superBlock->s_free[0] = -1;
+            superBlock.s_free[0] = -1;
         }
         else {
-            superBlock->s_free[0] = blockStartAddr + (i + 1) *  BLOCKS_PER_GROUP * BLOCK_SIZE;
+            superBlock.s_free[0] = blockStartAddr + (i + 1) *  BLOCKS_PER_GROUP * BLOCK_SIZE;
         }
         for (j = 1; j < BLOCKS_PER_GROUP; j++) {
-            superBlock->s_free[j] = blockStartAddr + (i * BLOCKS_PER_GROUP + j) * BLOCK_SIZE;
+            superBlock.s_free[j] = blockStartAddr + (i * BLOCKS_PER_GROUP + j) * BLOCK_SIZE;
         }
         fseek(fw, blockStartAddr + i * BLOCKS_PER_GROUP * BLOCK_SIZE, SEEK_SET);
-        fwrite(superBlock->s_free, sizeof(superBlock->s_free), 1, fw);
+        fwrite(&superBlock.s_free, sizeof(superBlock.s_free), 1, fw);
     }
     
     fseek(fw, superBlockStartAddr, SEEK_SET);
-    fwrite(superBlock, sizeof(struct SuperBlock), 1, fw);
+    fwrite(&superBlock, sizeof(struct SuperBlock), 1, fw);
     fflush(fw);
     
     //read inode bitmap
@@ -132,7 +184,7 @@ int Format() { //When you first time install the file system, some format need t
     for (i = 1; i < 10; i++) {
         cur->i_dirBlock[i] = -1;
     }
-    cur->i_size = superBlock->s_block_size;
+    cur->i_size = superBlock.s_block_size;
     cur->i_indirBlock_1 = -1;
     cur->i_mode = MODE_DIR | DIR_DFT_PERMISSION;
     
@@ -168,7 +220,7 @@ int Format() { //When you first time install the file system, some format need t
 int Install() {
     //read the super block
     fseek(fr, superBlockStartAddr, SEEK_SET);
-    fread(superBlock, sizeof(struct SuperBlock), 1, fr);
+    fread(&superBlock, sizeof(struct SuperBlock), 1, fr);
     
     //read the inode bitmap
     fseek(fr, inodeBitmapStartAddr, SEEK_SET);
@@ -183,34 +235,34 @@ int Install() {
 
 int balloc() { //block allocate funciton
     int top;
-    if (superBlock->s_free_addr == 0) {
+    if (superBlock.s_free_addr == 0) {
         print("there is no enough block\n");
         return -1;
     }
     else {
-        top = (superBlock->s_free_block_num - 1) % superBlock->s_blocks_per_group;
+        top = (superBlock.s_free_block_num - 1) % superBlock.s_blocks_per_group;
     }
     int retAddr;
     
     if (top == 0) {
-        retAddr = superBlock->s_free_addr;
-        superBlock->s_free_addr = superBlock->s_free[0];
-        fseek(fr, superBlock->s_free_addr, SEEK_SET);
-        fread(superBlock->s_free, sizeof(superBlock->s_free), 1, fr);
+        retAddr = superBlock.s_free_addr;
+        superBlock.s_free_addr = superBlock.s_free[0];
+        fseek(fr, superBlock.s_free_addr, SEEK_SET);
+        fread(&superBlock.s_free, sizeof(superBlock.s_free), 1, fr);
         fflush(fr);
         
-        superBlock->s_free_block_num--;
+        superBlock.s_free_block_num--;
     }
     else {
-        retAddr = superBlock->s_free[top];
-        superBlock->s_free[top] = -1;
+        retAddr = superBlock.s_free[top];
+        superBlock.s_free[top] = -1;
         top--;
-        superBlock->s_free_block_num--;
+        superBlock.s_free_block_num--;
     }
     
     //update super block
     fseek(fw, superBlockStartAddr, SEEK_SET);
-    fwrite(superBlock, sizeof(superBlock), 1, fw);
+    fwrite(&superBlock, sizeof(superBlock), 1, fw);
     fflush(fw);
     
     //update block bitmap
@@ -223,46 +275,46 @@ int balloc() { //block allocate funciton
 
 //block free function
 int bfree(int addr) {
-    if (addr < blockStartAddr || (addr - blockStartAddr) % superBlock->s_block_size != 0) {
+    if (addr < blockStartAddr || (addr - blockStartAddr) % superBlock.s_block_size != 0) {
         print("function bfree(): invalid block address\n");
         return -1;
     }
-    unsigned int bno = (addr - blockStartAddr) % superBlock->s_block_size; //block number
+    unsigned int bno = (addr - blockStartAddr) % superBlock.s_block_size; //block number
     if (blockBitmap[bno] == 0) {
         print("function bfree(): this is an unused block, not allowed to free\n");
         return -1;
     }
     
     int top;
-    if (superBlock->s_free_block_num == superBlock->s_block_num) {
+    if (superBlock.s_free_block_num == superBlock.s_block_num) {
         print("function bfree(): no non-idle blocks, not allowed to free\n");
         return -1;
     }
     else {
-        top = (superBlock->s_free_block_num - 1) % superBlock->s_blocks_per_group;
+        top = (superBlock.s_free_block_num - 1) % superBlock.s_blocks_per_group;
         char tmp[BLOCK_SIZE] = {0}; 
         fseek(fw, addr, SEEK_SET);
         fwrite(tmp, sizeof(tmp), 1, fw);
 
-        if (top == superBlock->s_blocks_per_group - 1) {
-            superBlock->s_free[0] = superBlock->s_free_addr;
-            superBlock->s_free_addr = addr; // I add this line
+        if (top == superBlock.s_blocks_per_group - 1) {
+            superBlock.s_free[0] = superBlock.s_free_addr;
+            superBlock.s_free_addr = addr; // I add this line
             int i;
-            for (int i = 1;i < superBlock->s_blocks_per_group; i++) {
-                superBlock->s_free[i] = -1;
+            for (int i = 1;i < superBlock.s_blocks_per_group; i++) {
+                superBlock.s_free[i] = -1;
             }
             fseek(fw, addr, SEEK_SET);
-            fwrite(superBlock->s_free, sizeof(superBlock->s_free), 1, fw);
+            fwrite(&superBlock.s_free, sizeof(superBlock.s_free), 1, fw);
         }
         else {
             top++;
-            superBlock->s_free[top] = addr;
+            superBlock.s_free[top] = addr;
         }
     }
     
-    superBlock->s_free_block_num++;
+    superBlock.s_free_block_num++;
     fseek(fw, superBlockStartAddr, SEEK_SET);
-    fwrite(superBlock, sizeof(superBlock), 1, fw);
+    fwrite(&superBlock, sizeof(superBlock), 1, fw);
     
     //update block bitmap
     blockBitmap[bno] = 0;
@@ -275,22 +327,22 @@ int bfree(int addr) {
 }
 
 int ialloc() { //inode allocate function
-    if (superBlock->s_free_inode_num == 0) {
+    if (superBlock.s_free_inode_num == 0) {
         print("no enough inode\n");
         return -1;
     }
     else {
         int i;
-        for (i = 0; i < superBlock->s_inode_num;i++) {
+        for (i = 0; i < superBlock.s_inode_num;i++) {
             if (inodeBitmap[i] == 0) {
                 break;
             }
         }
         
         //update super block
-        superBlock->s_free_inode_num--;
+        superBlock.s_free_inode_num--;
         fseek(fw, superBlockStartAddr, SEEK_SET);
-        fwrite(superBlock, sizeof(superBlock), 1 ,fw);
+        fwrite(&superBlock, sizeof(superBlock), 1 ,fw);
         
         //update inode bitmap
         inodeBitmap[i] = 1;
@@ -298,17 +350,17 @@ int ialloc() { //inode allocate function
         fwrite(&inodeBitmap[i], sizeof(bool), 1, fw);
         fflush(fw);
         
-        return inodeStartAddr + i * superBlock->s_inode_size;
+        return inodeStartAddr + i * superBlock.s_inode_size;
     }
 }
 
 //inode free function
 int ifree(int addr) {
-    if (addr < inodeStartAddr || (addr - inodeStartAddr) % superBlock->s_inode_size != 0) {
+    if (addr < inodeStartAddr || (addr - inodeStartAddr) % superBlock.s_inode_size != 0) {
         print("function ifree(): invalid inode address\n");
         return -1;
     }
-    unsigned short ino = (addr - inodeStartAddr) % superBlock->s_inode_size;
+    unsigned short ino = (addr - inodeStartAddr) % superBlock.s_inode_size;
     if (inodeBitmap[ino] == 0) {
         print("function ifree(): the inode is unused, not allowed to free\n");
         return -1;
@@ -320,9 +372,9 @@ int ifree(int addr) {
     fwrite(tmp, sizeof(tmp), 1, fw);
     
     //update super block
-    superBlock->s_free_inode_num++;
+    superBlock.s_free_inode_num++;
     fseek(fw, superBlockStartAddr, SEEK_SET);
-    fwrite(superBlock, sizeof(superBlock), 1, fw);
+    fwrite(&superBlock, sizeof(superBlock), 1, fw);
     
     //update inode bitmap
     inodeBitmap[ino] = 0;
@@ -405,7 +457,7 @@ int mkDir(int parinoAddr, char name[]) {
         
         struct Inode newInode;
         struct Inode* inode = &newInode;
-        inode->i_inode = (chiinoAddr - inodeStartAddr) / superBlock->s_inode_size;
+        inode->i_inode = (chiinoAddr - inodeStartAddr) / superBlock.s_inode_size;
         inode->i_atime = time(NULL);
         inode->i_ctime = time(NULL);
         inode->i_mtime = time(NULL);
@@ -432,7 +484,7 @@ int mkDir(int parinoAddr, char name[]) {
         for (k = 1; k < 10; k++) {
             inode->i_dirBlock[k] = -1;
         }
-        inode->i_size = superBlock->s_block_size;
+        inode->i_size = superBlock.s_block_size;
         inode->i_indirBlock_1 = -1;
         inode->i_mode = MODE_DIR | DIR_DFT_PERMISSION;
 
@@ -668,7 +720,7 @@ int create(int parinoAddr, char name[], char buf[]) {
         struct Inode newInode;
         fseek(fr, newInodeAddr, SEEK_SET);
         fread(&newInode, sizeof(struct Inode), 1, fr);
-        newInode.i_inode = (newInodeAddr - inodeStartAddr)/superBlock->s_inode_size;
+        newInode.i_inode = (newInodeAddr - inodeStartAddr)/superBlock.s_inode_size;
         newInode.i_atime = time(NULL);
         newInode.i_ctime = time(NULL);
         newInode.i_mtime = time(NULL);
@@ -678,7 +730,7 @@ int create(int parinoAddr, char name[], char buf[]) {
 
         int fileSize = strlen(buf);
         int k;
-        for (k = 0; k < fileSize; k += superBlock->s_inode_size) {
+        for (k = 0; k < fileSize; k += superBlock.s_inode_size) {
             int newBlockAddr = balloc();
             if (newBlockAddr == -1) {
                 print("create function: block allocate failed\n");
@@ -686,10 +738,10 @@ int create(int parinoAddr, char name[], char buf[]) {
             }
             newInode.i_dirBlock[k] = newBlockAddr;
             fseek(fw, newBlockAddr, SEEK_SET);
-            fwrite(buf + k, superBlock->s_block_size, 1 ,fw);
+            fwrite(buf + k, superBlock.s_block_size, 1 ,fw);
         }
         
-        for (k = fileSize / superBlock->s_block_size; k < 10; k++) {
+        for (k = fileSize / superBlock.s_block_size; k < 10; k++) {
             newInode.i_dirBlock[k] = -1;
         }
         if (fileSize == 0) { //allocate a block even the file size is 0
@@ -699,9 +751,9 @@ int create(int parinoAddr, char name[], char buf[]) {
                 return -1;
             }
             
-            newInode.i_dirBlock[k / superBlock->s_block_size] = newBlockAddr;
+            newInode.i_dirBlock[k / superBlock.s_block_size] = newBlockAddr;
             fseek(fw, newBlockAddr, SEEK_SET);
-            fwrite(buf, superBlock->s_block_size, 1, fw);
+            fwrite(buf, superBlock.s_block_size, 1, fw);
         }
         newInode.i_size = fileSize;
         newInode.i_indirBlock_1 = -1;
@@ -803,7 +855,9 @@ int del(int parinoAddr, char name[]) {
     return -1;
 }
 
+
 int list(int parinoAddr) {
+
     return 0;
 }
 
@@ -813,6 +867,42 @@ int chMod(int parinoAddr, char name[], int pmode) {
 
 int chDir(int parinoAddr, char name[]) {
     return 0;
+}
+
+void cmd(char str[]) {
+    char p1[100];
+    char p2[100];
+    char p3[100];
+    char buf[1000];
+    int tmp = 0, i, res;
+    sscanf(str, "%s", p1);
+    
+    if (strcmp(p1, "mkdir") == 0) {
+        sscanf(str, "%s%s", p1, p2);
+        mkDir(curDirAddr, p2);
+    }
+    else if (strcmp(p1, "rmdir") == 0) {
+        sscanf(str, "%s%s", p1, p2);
+        rmDir(curDirAddr, p2);
+    }
+    else if (strcmp(p1, "touch") == 0) {
+        sscanf(str, "%s%s", p1, p2);
+        char content[1];
+        content[0] = '\0';
+        if ((res = create(curDirAddr, p2, content)) == -1) {
+            print("touch file failed\n");
+        }
+    }
+    else if (strcmp(p1, "rm") == 0) {
+        sscanf(str, "%s%s", p1, p2);
+        del(curDirAddr, p2);
+    }
+    else if (strcmp(p1, "exit") == 0) {
+        exit(0);
+    }
+    else {
+        print("command not found\n");
+    }
 }
 
 

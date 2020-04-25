@@ -78,7 +78,6 @@ struct Dir {
 };
 
 //global variable declare
- struct SuperBlock *superBlock;
   int inodeStartAddr;
   int superBlockStartAddr;
   int inodeBitmapStartAddr; //occupy two blocks, monitor no more than 1024 inodes
@@ -145,6 +144,6 @@ int chMod(int parinoAddr, char name[], int pmode);
 int Touch(int parinoAddr, char name[], char buf[]);
 int help();
 
-int cmd(char str[]); //process the input command
+void cmd(char str[]); //process the input command
 
 int print(char* str);

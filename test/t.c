@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "t.h"
 
 
 struct S {
@@ -10,7 +9,14 @@ struct S {
 };
 
 int main() {
-    sd(0);
+    char str[] = "mkdir c";
+    char buf[10];
+    sscanf(str, "%s", buf);
+    printf("s: %s\n", buf);
+    char buf2[10];
+    sscanf(str, "%s%s", buf, buf2);
+    printf("s1: %s\n", buf);
+    printf("s2: %s\n", buf2);
     return 0;
 }
 
