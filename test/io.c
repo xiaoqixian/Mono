@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-
+#include "io.h"
 struct S {
     char s[4];
     int d;
@@ -14,9 +12,21 @@ struct C {
 
 int main() {
     system("reset");
-    struct C c;
-    c.c[2] = 'c';
-    struct C* s = &c;
-    printf("%c\n",s->c[2]);
+    int d;
+    char* curHostName = "lunar";
+    char* curUserName = "root";
+    char* curDirName = "/";
+    char str[100];
+    while (1) {
+         char *p;
+         if (0) {
+             printf("[%s@%s %s]# ", curHostName, curUserName, curDirName);           }
+         else {
+             printf("[%s@%s %s]# ", curHostName, curUserName, curDirName);
+             fgets(str, 99, stdin);
+             printf("command: %s\n", str);
+         }
+     }
+
     return 0;
 }

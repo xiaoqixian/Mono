@@ -10,18 +10,19 @@ int main() {
         return -1;
     }
 
+
+    char str[100];
     system("reset");
     while (1) {
-        char str[100];
         char *p;
-        if ((p = strstr(curDirName, curUserDirName)) == NULL) {
+        if ((p = strstr(curDirName, curUserDirName)) != NULL) {
             printf("[%s@%s %s]# ", curHostName, curUserName, curDirName);
         }
         else {
             printf("[%s@%s ~%s]# ", curHostName, curUserName, curDirName + strlen(curUserName));
-            scanf("%s", str);
-            cmd(str);
         }
+        fgets(str, sizeof(str), stdin);
+        cmd(str);
     }
     fclose(fw);
     fclose(fr);
@@ -857,7 +858,36 @@ int del(int parinoAddr, char name[]) {
 
 
 int list(int parinoAddr) {
-
+    struct Inode curInode;
+    fseek(fr, parinoAddr, SEEK_SET);
+    fread(&curInode, sizeof(struct Inode), 1, fr);
+    fflush(fr);
+    
+    int i, count = 0;
+    struct Dir dirlist[16] {
+        0
+    };
+    for (i = 0; i < sizeof(curInode.i_dirBlock)/sizeof(int); i++) {
+        if (curInode.i_dirBlock[i] == -1) {
+            continue;
+        }
+        
+        fseek(fr, curInode.i_dirBlock[i], SEEK_SET);
+        fread(&dirlist, sizeof(dirlist), 1, fr);
+        fflush(fr);
+        
+        int j;
+        for (j = 0; j < 16; j++) {
+            if (strcmp(dirlist[j].dirName, "") == 0) {
+                continue;
+            }
+            printf("%s\t", dirlist[j].dirName);
+            if (count % 3 == 0) {
+                printf("\n");
+            }
+            count++;
+        }
+    }
     return 0;
 }
 
@@ -896,6 +926,15 @@ void cmd(char str[]) {
     else if (strcmp(p1, "rm") == 0) {
         sscanf(str, "%s%s", p1, p2);
         del(curDirAddr, p2);
+    }
+    else if (strcmp(p1, "ls") == 0) {
+        sscanf(str, "%s%s", p1, p2);
+        if (strcmp(p2, "") == 0) {
+            list(curDirAddr);
+        }
+        else {
+            //cd
+        }
     }
     else if (strcmp(p1, "exit") == 0) {
         exit(0);
