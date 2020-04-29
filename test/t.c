@@ -1,18 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <unistd.h>
 
 struct S {
     int d;
+    char s[20];
 };
 
 int main() {
-    char s[] = "12345678901234567890"; 
-    printf("%zx\n", sizeof(char));
+    printf("struct: %zx\n", sizeof(struct S));
+    struct S s;
+    printf("s: %zx\n", sizeof(s));
     return 0;
 }
 
-int sd(int df) {
-    return 0;
-}

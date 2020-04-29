@@ -2,8 +2,8 @@
 #include <string.h>
 #include <time.h>
 #include <stdbool.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define BLOCK_SIZE 512                    //unit is byte B
 #define INODE_SIZE 128

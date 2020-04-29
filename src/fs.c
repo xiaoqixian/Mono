@@ -56,19 +56,21 @@ int Init() {
         isLogin = false;
         strcpy(curUserName, "root");
         strcpy(curGroupName, "root");
-        strcpy(curHostName, "lunar");
+        strcpy(curHostName, "ubuntu");
         
         rootDirAddr = inodeStartAddr;
         curDirAddr = rootDirAddr;
         strcpy(curDirName, "/");
         
         printf("file system formating\n");
+        sleep(2);
         if ((res = Format()) == -1) {
             printf("disk format failed\n");
             return -1;
         }
         printf("file system format done\n");
         printf("file system installing\n");
+        sleep(2);
         if ((res = Install()) == -1) {
             printf("file system install failed\n");
             return -1;
@@ -89,7 +91,7 @@ int Init() {
         strcpy(curUserName, "root");
         strcpy(curGroupName, "root");
         
-        strcpy(curHostName, "lunar");
+        strcpy(curHostName, "ubuntu");
         
         rootDirAddr = inodeStartAddr;
         curDirAddr = rootDirAddr;
@@ -164,10 +166,20 @@ int Format() { //When you first time install the file system, some format need t
     struct Inode curInode;
     struct Inode* cur = &curInode;
     int inodeAddr = ialloc();
+    if (inodeAddr == -1) {
+        printf("inode allocate failed\n");
+        return -1;
+    }
     int blockAddr = balloc();
-    struct Dir dirList[16];
-    strcpy(dirList->dirName, ".");
-    dirList->inodeAddr = inodeAddr;
+    if (blockAddr == -1) {
+        printf("block allocate failed\n");
+        return -1;
+    }
+    struct Dir dirList[16] = {
+        0
+    };
+    strcpy(dirList[0].dirName, ".");
+    dirList[0].inodeAddr = inodeAddr;
     
     fseek(fw, blockAddr, SEEK_SET);
     fwrite(dirList, sizeof(dirList), 1, fw);
@@ -194,7 +206,7 @@ int Format() { //When you first time install the file system, some format need t
     fwrite(cur, sizeof(struct Inode), 1, fw);
     
     //create directory and config file
-    mkDir(rootDirAddr, "home");
+    /*mkDir(rootDirAddr, "home");
     chDir(rootDirAddr, "home");
     mkDir(curDirAddr, "root");
     
@@ -213,7 +225,7 @@ int Format() { //When you first time install the file system, some format need t
     sprintf(buf + strlen(buf), "user::1:\n");
     create(curDirAddr, "group", buf);
     
-    chDir(curDirAddr, "..");
+    chDir(curDirAddr, "..");*/
     return 0;
 
 }
@@ -236,7 +248,7 @@ int Install() {
 
 int balloc() { //block allocate funciton
     int top;
-    if (superBlock.s_free_addr == 0) {
+    if (superBlock.s_free_addr == -1) {
         print("there is no enough block\n");
         return -1;
     }
@@ -257,7 +269,7 @@ int balloc() { //block allocate funciton
     else {
         retAddr = superBlock.s_free[top];
         superBlock.s_free[top] = -1;
-        top--;
+        //top--;
         superBlock.s_free_block_num--;
     }
     
@@ -267,6 +279,7 @@ int balloc() { //block allocate funciton
     fflush(fw);
     
     //update block bitmap
+    blockBitmap[(retAddr - blockStartAddr) / BLOCK_SIZE] = 1;
     fseek(fw, (retAddr - blockStartAddr) / BLOCK_SIZE + blockBitmapStartAddr, SEEK_SET);
     fwrite(&blockBitmap[(retAddr - blockStartAddr) / BLOCK_SIZE], sizeof(bool), 1, fw);
     fflush(fw);
@@ -277,7 +290,7 @@ int balloc() { //block allocate funciton
 //block free function
 int bfree(int addr) {
     if (addr < blockStartAddr || (addr - blockStartAddr) % superBlock.s_block_size != 0) {
-        print("function bfree(): invalid block address\n");
+        printf("function bfree(): invalid block address\n");
         return -1;
     }
     unsigned int bno = (addr - blockStartAddr) % superBlock.s_block_size; //block number
@@ -301,7 +314,7 @@ int bfree(int addr) {
             superBlock.s_free[0] = superBlock.s_free_addr;
             superBlock.s_free_addr = addr; // I add this line
             int i;
-            for (int i = 1;i < superBlock.s_blocks_per_group; i++) {
+            for (i = 1;i < superBlock.s_blocks_per_group; i++) {
                 superBlock.s_free[i] = -1;
             }
             fseek(fw, addr, SEEK_SET);
@@ -399,17 +412,17 @@ int mkDir(int parinoAddr, char name[]) {
     fseek(fr, parinoAddr, SEEK_SET);
     fread(cur, sizeof(struct Inode), 1, fr);
     
-    int i = 0, count = cur->i_count + 1, posi = -1, posj = -1, dno = 0;
+    int i = 0, count = curInode.i_count + 1, posi = -1, posj = -1, dno = 0;
     while (i < 160) {
         //in 160 directories, directly search in direct blocks
         dno = i / 16;
         
-        if (cur->i_dirBlock[dno] == -1) {
+        if (curInode.i_dirBlock[dno] == -1) {
             i += 16;
             continue;
         }
         
-        fseek(fr, cur->i_dirBlock[dno], SEEK_SET);
+        fseek(fr, curInode.i_dirBlock[dno], SEEK_SET);
         fread(dirlist, sizeof(dirlist), 1, fr);
         fflush(fr);
         
@@ -428,15 +441,15 @@ int mkDir(int parinoAddr, char name[]) {
     }
     if (posi == -1) { //can't find free dirItem in the blocks already exist, have to create a new block
         dno = 0;
-        while (dno < DIR_DIRECT_BLOCKS && cur->i_dirBlock[dno] != -1) {
+        while (dno < DIR_DIRECT_BLOCKS && curInode.i_dirBlock[dno] != -1) {
             dno++;
         }
         if (dno == DIR_DIRECT_BLOCKS) {
             print("the number of directories has readched to the maximum\n");
             return -1;
         }
-        cur->i_dirBlock[dno] = balloc();
-        if (cur->i_dirBlock[dno] == -1) {
+        curInode.i_dirBlock[dno] = balloc();
+        if (curInode.i_dirBlock[dno] == -1) {
             print("function mkdir(): create block failed\n");
             return -1;
         }
@@ -452,6 +465,7 @@ int mkDir(int parinoAddr, char name[]) {
         int chiinoAddr = ialloc();
         if (chiinoAddr == -1) {
             print("function mkdir(): inode allocate failed\n");
+            //if the block is in a new block group, it need be freed
             return -1;
         }
         dirlist[posj].inodeAddr = chiinoAddr;
@@ -478,7 +492,7 @@ int mkDir(int parinoAddr, char name[]) {
         dirlist2[1].inodeAddr = parinoAddr; //parent directory address
         
         fseek(fw, curBlockAddr, SEEK_SET);
-        fwrite(dirlist2, sizeof(dirlist2), 1, fw);
+        fwrite(&dirlist2, sizeof(dirlist2), 1, fw);
         
         inode->i_dirBlock[0] = curBlockAddr;
         int k;
@@ -492,10 +506,10 @@ int mkDir(int parinoAddr, char name[]) {
         fseek(fw, chiinoAddr, SEEK_SET);
         fwrite(inode, sizeof(struct Inode), 1, fw);
         
-        fseek(fw, cur->i_dirBlock[posi], SEEK_SET);
-        fwrite(dirlist, sizeof(dirlist), 1, fw);
+        fseek(fw, curInode.i_dirBlock[posi], SEEK_SET);
+        fwrite(&dirlist, sizeof(dirlist), 1, fw);
         
-        cur->i_count++;
+        curInode.i_count++;
         fseek(fw, parinoAddr, SEEK_SET);
         fwrite(cur, sizeof(struct Inode), 1, fw);
         fflush(fw);
@@ -864,10 +878,10 @@ int list(int parinoAddr) {
     fflush(fr);
     
     int i, count = 0;
-    struct Dir dirlist[16] {
+    struct Dir dirlist[16] = {
         0
     };
-    for (i = 0; i < sizeof(curInode.i_dirBlock)/sizeof(int); i++) {
+    for (i = 0; i < 10; i++) {
         if (curInode.i_dirBlock[i] == -1) {
             continue;
         }
@@ -879,6 +893,12 @@ int list(int parinoAddr) {
         int j;
         for (j = 0; j < 16; j++) {
             if (strcmp(dirlist[j].dirName, "") == 0) {
+                continue;
+            }
+            else if (strcmp(dirlist[j].dirName, ".") == 0) {
+                continue;
+            }
+            else if (strcmp(dirlist[j].dirName, "..") == 0) {
                 continue;
             }
             printf("%s\t", dirlist[j].dirName);
