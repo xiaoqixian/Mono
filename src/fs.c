@@ -2,7 +2,19 @@
 
 struct SuperBlock superBlock;
 
+static char p1[100];
+static char p2[100];
+static char p3[100];
+static char buf[1000];
+
+void test();
+
 int main() {
+    int tes = 1;
+    if (tes) {
+        test();
+        return 0;
+    }
     //Init the virtual disk
     int res;
     if ((res = Init()) == -1) {
@@ -16,10 +28,10 @@ int main() {
     while (1) {
         char *p;
         if ((p = strstr(curDirName, curUserDirName)) != NULL) {
-            printf("[%s@%s %s]# ", curHostName, curUserName, curDirName);
+            printf("[%s@%s %s]# ", curUserName, curHostName, curDirName);
         }
         else {
-            printf("[%s@%s ~%s]# ", curHostName, curUserName, curDirName + strlen(curUserName));
+            printf("[%s@%s ~%s]# ", curUserName, curHostName, curDirName + strlen(curUserName));
         }
         fgets(str, sizeof(str), stdin);
         cmd(str);
@@ -30,6 +42,10 @@ int main() {
 
 }
 
+void test() {
+    struct Dir dirlist[16];
+    printf("size of dirlist: %zx\n",sizeof(dirlist));
+}
 
 int Init() {
     superBlockStartAddr = 0;
@@ -166,6 +182,10 @@ int Format() { //When you first time install the file system, some format need t
     struct Inode curInode;
     struct Inode* cur = &curInode;
     int inodeAddr = ialloc();
+    if (inodeAddr != inodeStartAddr) {
+        printf("root inode addr not equal to inode start addr\n");
+        return -1;
+    }
     if (inodeAddr == -1) {
         printf("inode allocate failed\n");
         return -1;
@@ -293,7 +313,7 @@ int bfree(int addr) {
         printf("function bfree(): invalid block address\n");
         return -1;
     }
-    unsigned int bno = (addr - blockStartAddr) % superBlock.s_block_size; //block number
+    unsigned int bno = (addr - blockStartAddr) / superBlock.s_block_size; //block number
     if (blockBitmap[bno] == 0) {
         print("function bfree(): this is an unused block, not allowed to free\n");
         return -1;
@@ -400,12 +420,15 @@ int ifree(int addr) {
 }
 
 int mkDir(int parinoAddr, char name[]) {
+    printf("making dir...\n");
     if (strlen(name) >= MAX_NAME_SIZE) {
         print("function mkDir(): directory name too long\n");
         return -1;
     }
     int dirlist_per_group = BLOCK_SIZE / (4 + MAX_NAME_SIZE);
-    struct Dir dirlist[16];
+    struct Dir dirlist[16] = {
+        0
+    };
     
     struct Inode curInode;
     struct Inode* cur = &curInode;
@@ -423,11 +446,12 @@ int mkDir(int parinoAddr, char name[]) {
         }
         
         fseek(fr, curInode.i_dirBlock[dno], SEEK_SET);
-        fread(dirlist, sizeof(dirlist), 1, fr);
+        fread(&dirlist, sizeof(dirlist), 1, fr);
         fflush(fr);
         
         int j;
         for (j = 0; j < 16; j++) {
+            printf("files under the directory: %s\n", dirlist[j].dirName);
             if (strcmp(dirlist[j].dirName, name) == 0) {
                 print("cannot create directory: File exists\n");
                 return -1;
@@ -461,14 +485,15 @@ int mkDir(int parinoAddr, char name[]) {
         fread(dirlist, sizeof(dirlist), 1, fr);
         fflush(fr);
         
-        strcpy(dirlist[posj].dirName, name);
         int chiinoAddr = ialloc();
+        printf("new inode address: %d\n", chiinoAddr);
         if (chiinoAddr == -1) {
             print("function mkdir(): inode allocate failed\n");
             //if the block is in a new block group, it need be freed
             return -1;
         }
         dirlist[posj].inodeAddr = chiinoAddr;
+        strcpy(dirlist[posj].dirName, name);
         
         struct Inode newInode;
         struct Inode* inode = &newInode;
@@ -481,6 +506,7 @@ int mkDir(int parinoAddr, char name[]) {
         inode->i_count = 2;
         
         int curBlockAddr = balloc();
+        printf("new block address: %d\n", curBlockAddr);
         if (curBlockAddr == -1) {
             print("block allocate failed\n");
             return -1;
@@ -526,11 +552,11 @@ int rmall(int parinoAddr) { //delete everything under this directory
     struct Inode curInode;
     struct Inode* cur = &curInode;
     fseek(fr, parinoAddr, SEEK_SET);
-    fread(cur, sizeof(struct Inode), 1, fr);
+    fread(&curInode, sizeof(struct Inode), 1, fr);
     
-    int cnt = cur->i_count, res = 0;
+    int cnt = curInode.i_count, res = 0;
     if (cnt <= 2) {
-        res = bfree(cur->i_dirBlock[0]);
+        res = bfree(curInode.i_dirBlock[0]);
         if (res == -1) {
             print("function rmall(): free block failed\n");
             return -1;
@@ -576,7 +602,6 @@ int rmall(int parinoAddr) { //delete everything under this directory
             }
         }
     }
-    free(cur);
     res = ifree(parinoAddr);
     if (res == -1) {
         print("function rmall(): block free failed\n");
@@ -587,12 +612,12 @@ int rmall(int parinoAddr) { //delete everything under this directory
 
 int rmDir(int curAddr, char name[]) {
     if (strlen(name) >= MAX_NAME_SIZE) {
-        print("directory name too long\n");
+        printf("directory name too long\n");
         return -1;
     }
     
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-        print("wrong operation\n");
+        printf("wrong operation\n");
         return -1;
     }
     
@@ -601,22 +626,10 @@ int rmDir(int curAddr, char name[]) {
     fread(&curInode, sizeof(struct Inode), 1, fr);
     
     int cnt = curInode.i_count;
-    int filemode;
-    if (strcmp(curUserName, curInode.i_uname) == 0) {
-        filemode = 6;
-    }
-    else if(strcmp(curUserName, curInode.i_gname) == 0) {
-        filemode = 3;
-    }
-    else {
-        filemode = 0;
-    }
     
-    if ((((curInode.i_mode >> filemode >> 1)&1) == 0) && (strcmp(curUserName, "root") != 0)) {
-        print("no write authority!\n");
-        return -1;
-    }
-    
+    struct Dir dirlist[16] = {
+        0
+    };
     int i = 0;
     while (i < 160) {
         if (curInode.i_dirBlock[i/16] == -1) {
@@ -624,9 +637,6 @@ int rmDir(int curAddr, char name[]) {
             continue;
         }
         
-        struct Dir dirlist[16] = {
-            0
-        };
         int blockAddr = curInode.i_dirBlock[i/16];
         fseek(fr, blockAddr, SEEK_SET);
         fread(&dirlist, sizeof(dirlist), 1, fr);
@@ -641,6 +651,7 @@ int rmDir(int curAddr, char name[]) {
                     print("error operation: not a directory\n");
                     return -1;
                 }
+                printf("the name of directory: %s\n", dirlist[j].dirName);
                 rmall(dirlist[j].inodeAddr);
                 
                 strcpy(dirlist[j].dirName, "");
@@ -669,7 +680,9 @@ int create(int parinoAddr, char name[], char buf[]) {
     }
 
     //first compare the name with names of files under the current directory
-    struct Dir dirlist[16];
+    struct Dir dirlist[16] = {
+        0
+    };
     
     struct Inode curInode;
     fseek(fr, parinoAddr, SEEK_SET);
@@ -872,20 +885,32 @@ int del(int parinoAddr, char name[]) {
 
 
 int list(int parinoAddr) {
+    if (parinoAddr == inodeStartAddr) {
+        printf("you are in root directory\n");
+    }
     struct Inode curInode;
     fseek(fr, parinoAddr, SEEK_SET);
     fread(&curInode, sizeof(struct Inode), 1, fr);
     fflush(fr);
     
-    int i, count = 0;
+    int i, count = 1;
     struct Dir dirlist[16] = {
         0
     };
+    int cnt = curInode.i_count;
+    
+    printf("inode direct blocks address: \n");
+    for (i = 0; i < 10; i++) {
+        printf("%d, ", curInode.i_dirBlock[i]);
+    }
+    printf("\n");
+
     for (i = 0; i < 10; i++) {
         if (curInode.i_dirBlock[i] == -1) {
             continue;
         }
         
+        memset(&dirlist, 0, sizeof(dirlist));
         fseek(fr, curInode.i_dirBlock[i], SEEK_SET);
         fread(&dirlist, sizeof(dirlist), 1, fr);
         fflush(fr);
@@ -902,11 +927,14 @@ int list(int parinoAddr) {
                 continue;
             }
             printf("%s\t", dirlist[j].dirName);
-            if (count % 3 == 0) {
+            if (count % 5 == 0) {
                 printf("\n");
             }
             count++;
         }
+    }
+    if (count % 5 != 1) {
+        printf("\n");
     }
     return 0;
 }
@@ -919,11 +947,11 @@ int chDir(int parinoAddr, char name[]) {
     return 0;
 }
 
+
 void cmd(char str[]) {
-    char p1[100];
-    char p2[100];
-    char p3[100];
-    char buf[1000];
+    memset(p1, 0, sizeof(p1));
+    memset(p2, 0, sizeof(p2));
+    memset(p3, 0, sizeof(p3));
     int tmp = 0, i, res;
     sscanf(str, "%s", p1);
     
@@ -949,12 +977,16 @@ void cmd(char str[]) {
     }
     else if (strcmp(p1, "ls") == 0) {
         sscanf(str, "%s%s", p1, p2);
+        printf("p2: %s\n", p2);
         if (strcmp(p2, "") == 0) {
             list(curDirAddr);
         }
         else {
             //cd
         }
+    }
+    else if (strcmp(p1, "") == 0) {
+        //do nothing
     }
     else if (strcmp(p1, "exit") == 0) {
         exit(0);
