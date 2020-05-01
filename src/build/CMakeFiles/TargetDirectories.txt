@@ -1,0 +1,3 @@
+/home/lunar/pros/mono/src/build/CMakeFiles/rebuild_cache.dir
+/home/lunar/pros/mono/src/build/CMakeFiles/edit_cache.dir
+/home/lunar/pros/mono/src/build/CMakeFiles/mono.dir

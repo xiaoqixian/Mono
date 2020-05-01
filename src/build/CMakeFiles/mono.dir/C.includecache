@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/lunar/pros/mono/src/dir.c
+mono.h
+/home/lunar/pros/mono/src/mono.h
+
+/home/lunar/pros/mono/src/mono.h
+stdio.h
+-
+string.h
+-
+time.h
+-
+stdbool.h
+-
+stdlib.h
+-
+unistd.h
+-
+

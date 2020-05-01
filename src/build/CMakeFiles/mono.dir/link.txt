@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/mono.dir/main.c.o CMakeFiles/mono.dir/file.c.o CMakeFiles/mono.dir/dir.c.o CMakeFiles/mono.dir/ib_op.c.o  -o mono 
