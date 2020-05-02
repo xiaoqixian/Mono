@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/lunar/pros/mono/src/dir.c
+/home/lunar/pros/mono/src/main.c
 mono.h
 /home/lunar/pros/mono/src/mono.h
 

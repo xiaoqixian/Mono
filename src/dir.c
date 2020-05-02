@@ -1,7 +1,6 @@
 #include "mono.h"
 
 int mkDir(int parinoAddr, char name[]) {
-    //printf("making dir\n");
     if (strlen(name) >= MAX_NAME_SIZE) {
         printf("function mkDir(): directory name too long\n");
         return -1;
@@ -345,19 +344,28 @@ int chDir(int parinoAddr, char path[]) {
     }
     while (index < strlen(path)) {
         if (path[index] == '/') {
-            memset(tmp, 0, sizeof(tmp));
-            int i, j = 0;
-            for (i = before; i < index; i++) {
-                tmp[j++] = tmp[i];
-            }
-            res = chChiDir(curDirAddr, tmp);
-            if (res == -1) {
-                printf("change directory failed\n");
-                return -1;
-            }
-            before = index + 1;
+            break;
         }
         index++;
     }
+    memset(tmp, 0, sizeof(tmp));
+    int i, j = 0;
+    for (i = before; i < index; i++) {
+        tmp[j++] = path[i];
+    }
+    if (strcmp(tmp, "") == 0) {
+        return 0;
+    }
+    res = chChiDir(curDirAddr, tmp);
+    if (res == -1) {
+        printf("change directory failed\n");
+        return -1;
+    }
+    if (index == strlen(path)) {
+        return 0;
+    }
+    char* subPath = &path[index + 1];
+    chDir(curDirAddr, subPath);
+
     return 0;
 }

@@ -45,6 +45,12 @@ int main() {
         return -1;
     }
 
+    //determines if the user has tmpFile directory
+    res = access("tmpFile", F_OK);
+    if (res == -1) {
+        system("mkdir tmpFile");
+    }
+
     char str[100];
     system("reset");
     while (1) {
@@ -116,12 +122,40 @@ int Init() {
     else {
         printf("reading virtual disk file: mono.img...\n");
         sleep(0.5);
-        fw = fopen(FILESYSNAME, "ab");
+        fr = fopen(FILESYSNAME, "rb");
+        char* buffer = (char*)malloc(1024);
+        FILE* tmp_fw = fopen(TMPFILENAME, "wb");
+        FILE* tmp_fr = fopen(TMPFILENAME, "rb");
+        if (tmp_fr == NULL || tmp_fw == NULL) {
+            printf("temporary disk file open failed\n");
+            return -1;
+        }
+        
+        size_t size;
+        while (1) {
+            size = fread(buffer, sizeof(buffer), 1, fr);
+            if (size <= 0) {
+                break;
+            }
+            
+            fwrite(buffer, sizeof(buffer), 1, tmp_fw);
+            
+        }
+        
+        fw = fopen(FILESYSNAME, "wb");
         if (fw == NULL) {
             printf("virtual disk open failed\n");
             return -1;
         }
-        fr = fopen(FILESYSNAME, "rb");
+        while (1) {
+            size = fread(buffer, sizeof(buffer), 1, tmp_fr);
+            if (size <= 0) {
+                break;
+            }
+            
+            fwrite(buffer, sizeof(buffer), 1, fw);
+        }
+        free(buffer);
         
         nextUID = 0;
         nextGID = 0;
@@ -283,12 +317,10 @@ void cmd(char str[]) {
     
     if (strcmp(p1, "mkdir") == 0) {
         sscanf(str, "%s%s", p1, p2);
-        printf("dir name: %s\n", p2);
         mkDir(curDirAddr, p2);
     }
     else if (strcmp(p1, "rmdir") == 0) {
         sscanf(str, "%s%s", p1, p2);
-        printf("dir name: %s\n", p2);
         rmDir(curDirAddr, p2);
     }
     else if (strcmp(p1, "touch") == 0) {
@@ -318,7 +350,7 @@ void cmd(char str[]) {
             chRoot();
         }
         else {
-            chChiDir(curDirAddr, p2);
+            chDir(curDirAddr, p2);
         }
     }
     else if (strcmp(p1, "") == 0) {

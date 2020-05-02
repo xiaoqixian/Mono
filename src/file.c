@@ -258,3 +258,89 @@ int list(int parinoAddr) {
     }
     return 0;
 }
+
+int vim(int parinoAddr, char name[]) {
+    char cmd[100] = "vim ";
+    strcat(cmd, "tmpFile/");
+    strcat(cmd, name);
+    int res = system(cmd);
+    if (res == -1) {
+        printf("system command vim failed\n");
+        return -1
+    }
+    res = readFile(parinoAddr, name);
+    if (res == -1) {
+        printf("vim read file failed\n");
+        memset(cmd, 0, sizeof(cmd));
+        strcpy(cmd, "rm ");
+        strcat(cmd, name);
+        res = system(cmd);
+        if (res == -1) {
+            printf("system command rm failed\n");
+            return -1;
+        }
+        return -1;
+    }
+    return 0;
+}
+
+//read the tmp file made by vim
+int readFile(int parinoAddr, char name[]) {
+    //find the target file inode
+    struct Inode parInode;
+    fseek(fr, parinoAddr, SEEK_SET);
+    fread(&parInode, sizeof(parInode), 1, fr);
+    
+    int i;
+    struct Dir dirlist[16] = {
+        0
+    };
+    struct Inode tarInode;
+    int flag = 1;
+    for (i = 0; i < 10 && flag; i++) {
+        if (parInode.i_dirBlock[i] == -1) {
+            continue;
+        }
+        
+        fseek(fr, parInode.i_dirBlock[i], SEEK_SET);
+        fread(&dirlist, sizeof(dirlist), 1, fr);
+        
+        int j;
+        for (j = 0; j < 16; j++) {
+            if (strcmp(dirlist[j].dirName, name) == 0) {
+                fseek(fr, dirlist[j].inodeAddr, SEEK_SET);
+                fread(&tarInode, sizeof(tarInode), 1, fr);
+                flag = 0;
+                break;
+            }
+        }
+    }
+    
+    //if file not found, need to create a new file
+    if (flag) {
+        
+    }
+
+    char fileName[100] = {
+        0
+    };
+    strcpy(fileName, "tmpFile/");
+    strcat(fileName, name);
+    FILE* fr = fopen(fileName, "rb");
+    if (fr == NULL) {
+        printf("tmp file open failed\n");
+        return -1;
+    }
+
+    char buffer[512] = {
+        0
+    };
+    size_t size;
+    while (1) {
+        size = fread(buffer, sizeof(buffer), 1, fr);
+        if (size <= 0) {
+            break;
+        }
+
+    }
+}

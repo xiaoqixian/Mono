@@ -29,6 +29,7 @@
 #define DIR_DFT_PERMISSION 0775
 #define DIR_DIRECT_BLOCKS 10
 #define FILESYSNAME "mono.img"
+#define TMPFILENAME "mono_tmp.img"
 
 //super block define
 struct SuperBlock {
@@ -127,21 +128,11 @@ int chDir(int parinoAddr, char name[]);
 int chChiDir(int parinoAddr, char name[]);
 void chRoot();
 
-int vim(int parinoAddr, char name[], char buf[]);
-int writefile(struct Inode fileInode, int fileInodeAddr, char buf[]);
+int vim(int parinoAddr, char name[]);
+int readFile(int parinoAddr, char name[]);
 
-int login();
-int check(char username[], char passwd[]);
-int gotoroot();
-int logout();
-
-int userAdd(char username[]);
-int userDel(char username[]);
-
-int chMod(int parinoAddr, char name[], int pmode);
 int Touch(int parinoAddr, char name[], char buf[]);
 int help();
 
 void cmd(char str[]); //process the input command
 
-int print(char* str);
