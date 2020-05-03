@@ -1,5 +1,5 @@
 
-![](./pics/Mono.png)
+![](./pics/Mono.jpg)
 ---
 
 ![](./pics/grass.jpg)
