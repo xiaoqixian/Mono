@@ -1,4 +1,7 @@
-#include "mono.h"
+/*
+ * Copyright (C) Lunar Eclipse
+ * Copyright (C) https://github.com/xiaoqixian
+ */
 
 /*global variables declare*/
 int inodeStartAddr;
